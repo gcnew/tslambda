@@ -1,0 +1,36 @@
+{
+    "compilerOptions": {
+        "module": "commonjs",
+        "target": "es5",
+
+        // "pretty": true,
+
+        "sourceMap": true,
+        "mapRoot": "./build",
+        "sourceRoot": ".",
+        // "inlineSources": true,
+        // "inlineSourceMap": true,
+
+        "forceConsistentCasingInFileNames": true,
+
+        // "noUnusedParameters": true,
+        // "noUnusedLocals": true,
+        "noImplicitThis": true,
+        "noEmitOnError": true,
+        "noImplicitAny": true,
+        "removeComments": true,
+        "strictNullChecks": true,
+        "allowUnusedLabels": false,
+        "noImplicitReturns": true,
+        "noFallthroughCasesInSwitch": true,
+        "allowUnreachableCode": false,
+
+        "suppressImplicitAnyIndexErrors": true,
+
+        "outDir": "build"
+    },
+
+    "files": [
+        "tslambda.ts"
+    ]
+}
