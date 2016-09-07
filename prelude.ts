@@ -1,73 +1,37 @@
-import {
-    /* Constructor Funcs */
-    lam, ap, ref, lit, native, nativeBi,
+
+export {
+    /* Types */
+    Maybe, List,
 
     /* Data */
-    Root,
+    // Nothing, Nil
 
-    /* Utility functions */
-    makeContext, pair
-} from './tslambda'
+    /* functions */
+    cons, just, fromJust
+}
 
-const scope = makeContext(Root, [
-    nativeBi('+', (x, y) => x + y),
-    nativeBi('-', (x, y) => x - y),
-    nativeBi('*', (x, y) => x * y),
-    nativeBi('/', (x, y) => x / y),
+type Maybe<T> = { kind: 'nothing' }
+              | { kind: 'just', value: T }
 
-    native(
-        '⊥', (ignored) => { throw Error('⊥'); }
-    ),
+export const Nothing = { kind: 'nothing' as 'nothing' }; // TYH
 
-    // λx.x
-    pair(
-        'id', lam('x', ref('x'))
-    ),
+function just<T>(x: T): Maybe<T> {
+    return { kind: 'just', value: x };
+}
 
-    // λt.λf.t
-    pair(
-        'True', lam('t', lam('f', ref('t')))
-    ),
+function fromJust<T>(x: Maybe<T>): T {
+    if (x.kind === 'nothing') {
+        throw new Error('Maybe.fromJust: Nothing');
+    }
 
-    // λt.λf.t
-    pair(
-        'False', lam('t', lam('f', ref('f')))
-    ),
+    return x.value;
+}
 
-    // λx.λxs.λcc.λcn.cc x xs
-    pair(
-        'Cons', lam('x', lam('xs', lam('cc', lam('cn', ap(ap(ref('cc'), ref('x')), ref('xs'))))))
-    ),
+type List<T> = { kind: 'nil' }
+             | { kind: 'cons', val: T, rest: List<T> }
 
-    // λcc.λcn.cn Nil
-    pair(
-        'Nil',
-        lam('cc', lam('cn', ap(ref('cn'), ref('Nil'))))
-    ),
+export const Nil = { kind: 'nil' as 'nil' }; // TYH
 
-    // λxs.xs True ⊥
-    pair(
-        'head',
-        lam('xs', ap(ap(ref('xs'), ref('True')), ref('⊥')))
-    ),
-
-    // λxs.xs False ⊥
-    pair(
-        'tail',
-        lam('xs', ap(ap(ref('xs'), ref('False')), ref('⊥')))
-    ),
-
-    // λxs.xs (True (True False)) (True True)
-    pair(
-        'null',
-        lam('xs',
-            ap(
-                ap(
-                    ref('xs'),
-                    ap(ref('True'), ap(ref('True'), ref('False')))
-                ),
-                ap(ref('True'), ref('True'))
-            )
-        )
-    )
-]);
+function cons<T>(x: T, xs: List<T>): List<T> {
+    return { kind: 'cons', val: x, rest: xs };
+}

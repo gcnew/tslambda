@@ -1,30 +1,34 @@
 
+import { parse } from './parser'
+import { fromJust } from './prelude'
+import { prelude } from './lambda_prelude'
+import { show, evalExpr } from './tslambda'
 
-
-/*
-add x y = x + y
-test = add 3 (add 4 5)
-
-λx.λy.
-*/
 
 console.log(show(
     evalExpr(
-        scope,
-        ap(ap(ref('+'), lit(3)), ap(ap(ref('+'), lit(4)), lit(5)))
+        prelude,
+        fromJust(parse('+ 3 (+ 4 5)'))
     )
 ));
 
 console.log(show(
     evalExpr(
-        scope,
-        ap(ref('head'), ap(ap(ref('Cons'), lit(123)), ref('Nil')))
+        prelude,
+        fromJust(parse('head (Cons 123 Nil)'))
     )
 ));
 
 console.log(show(
     evalExpr(
-        scope,
-        ap(ref('head'), ref('Nil'))
+        prelude,
+        fromJust(parse('null'))
+    )
+));
+
+console.log(show(
+    evalExpr(
+        prelude,
+        fromJust(parse('head Nil'))
     )
 ));

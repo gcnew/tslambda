@@ -1,6 +1,7 @@
 {
     "compilerOptions": {
-        "module": "commonjs",
+        // "module": "commonjs",
+        "module": "amd",
         "target": "es5",
 
         // "pretty": true,
@@ -27,10 +28,11 @@
 
         "suppressImplicitAnyIndexErrors": true,
 
-        "outDir": "build"
+        // "outDir": "build"
+        "outFile": "build/lambda.js"
     },
 
     "files": [
-        "tslambda.ts"
+        "test.ts"
     ]
 }

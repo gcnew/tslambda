@@ -4,6 +4,7 @@ export {
     Expr, Value, Context,
     Application, LambdaDef, Reference, Literal,
     Lambda, Native,
+    KVPair,
 
     /* Constructor Funcs */
     lam, ap, ref, lit, native, nativeBi,
