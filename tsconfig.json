@@ -1,14 +1,13 @@
 {
     "compilerOptions": {
-        // "module": "commonjs",
-        "module": "amd",
+        "module": "commonjs",
         "target": "es5",
 
         // "pretty": true,
 
         "sourceMap": true,
-        "mapRoot": "./build",
-        "sourceRoot": ".",
+        // "mapRoot": "./build",
+        // "sourceRoot": ".",
         // "inlineSources": true,
         // "inlineSourceMap": true,
 
@@ -28,11 +27,10 @@
 
         "suppressImplicitAnyIndexErrors": true,
 
-        // "outDir": "build"
-        "outFile": "build/lambda.js"
+        "outDir": "build"
     },
 
     "files": [
-        "test.ts"
+        "src/test.ts"
     ]
 }

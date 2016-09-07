@@ -1,0 +1,15 @@
+{
+  "private": true,
+
+  "devDependencies": {
+    "webpack": "",
+    "webpack-dev-server": "",
+    "ts-loader": "",
+    "source-map-loader": "",
+    "typescript": ""
+  },
+
+  "scripts": {
+    "webpack-dev-server": "./node_modules/.bin/webpack-dev-server --progress --colors"
+  }
+}

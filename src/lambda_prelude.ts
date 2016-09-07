@@ -35,7 +35,8 @@ const preludeDefs: string[] = [
     'Nil',   'λcc.λcn.cn Nil',
     'head',  'λxs.xs True ⊥',
     'tail',  'λxs.xs False ⊥',
-    'null',  'λxs.xs (True (True False)) (True True)'
+    'null',  'λxs.xs (True (True False)) (True True)',
+    'pair',  'λx.λy.λf.f x y'
 ];
 
 export const prelude = makeContext(natives, fromJust(compileDefs(preludeDefs)));
