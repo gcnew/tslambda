@@ -3,20 +3,20 @@ import { parse } from './parser'
 import { Nothing, just, fromJust } from './prelude'
 
 import {
-    KVPair,
+    CtxEntry,
 
     /* Constructor Funcs */
     lam, ap, ref, lit, native, nativeBi,
 
     /* Data */
-    Root,
+    CtxRoot,
 
     /* Utility functions */
-    makeContext, pair
+    makeContext, ctxEntry
 } from './tslambda'
 
 
-export const natives = makeContext(Root, [
+export const natives = makeContext(CtxRoot, [
     nativeBi('+', (x, y) => x + y),
     nativeBi('-', (x, y) => x - y),
     nativeBi('*', (x, y) => x * y),
@@ -46,7 +46,7 @@ function compileDefs(defs: string[]) {
         return Nothing;
     }
 
-    const pairs: KVPair[] = [];
+    const pairs: CtxEntry[] = [];
     for (let i = 0; i < defs.length; i += 2) {
         const tag = defs[i];
         const source = defs[i + 1];
@@ -59,7 +59,7 @@ function compileDefs(defs: string[]) {
         switch (expr.value.kind) {
             case 'literal':
             case 'lambda_def':
-                pairs.push(pair(tag, expr.value));
+                pairs.push(ctxEntry(tag, expr.value));
                 break;
 
             case 'application':

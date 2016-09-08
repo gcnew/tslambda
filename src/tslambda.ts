@@ -1,20 +1,22 @@
 
+import { List, Nil, cons, lookup } from './prelude';
+
 export {
     /* Types */
     Expr, Value, Context,
     Application, LambdaDef, Reference, Literal,
     Lambda, Native,
-    KVPair,
+    CtxEntry,
 
     /* Constructor Funcs */
     lam, ap, ref, lit, native, nativeBi,
 
     /* Data */
     // exported inline because of const..
-    // Root,
+    // CtxRoot,
 
     /* Utility functions */
-    set, get, makeContext, pair, show,
+    set, get, makeContext, ctxEntry, show,
 
     /* Interpreter */
     evalExpr
@@ -35,12 +37,11 @@ type Expr = LambdaDef
           | Native
 
 type Value   = Literal | Lambda | LambdaDef
-type Context = { kind: 'root' }
-             | { kind: 'entry', key: string, value: Value, next: Context }
 
-type KVPair = { key: string, value: Value }
+type Context = List<CtxEntry>
+type CtxEntry = [string, Value]
 
-export const Root: Context = { kind: 'root' };
+export const CtxRoot = Nil;
 
 function lam(param: string, body: Expr): LambdaDef {
     return { kind: 'lambda_def', param: param, body: body };
@@ -80,19 +81,16 @@ function show(expr: Expr|Value): string {
 }
 
 function get(ctx: Context, key: string): Value {
-    if (ctx.kind === 'root') {
+    const res = lookup(ctx, key);
+    if (res.kind === 'nothing') {
         throw new Error(`Key '${key}' not found!`);
     }
 
-    if (ctx.key === key) {
-        return ctx.value;
-    }
-
-    return get(ctx.next, key);
+    return res.value;
 }
 
 function set(ctx: Context, key: string, value: Value): Context {
-    return { kind: 'entry', key: key, value: value, next: ctx };
+    return cons<CtxEntry>([key, value], ctx);
 }
 
 function evalExpr(ctx: Context, expr: Expr): Value {
@@ -150,7 +148,7 @@ function parameterNames(f: Function): string[] {
     return args ? args.split(/\s*,\s*/g) : [];
 }
 
-function native(name: string, f: (...values: Value[]) => Value): KVPair {
+function native(name: string, f: (...values: Value[]) => Value): CtxEntry {
     const params = parameterNames(f);
     const curried = params.reduceRight<Expr>(
         (body, param) => {
@@ -170,7 +168,7 @@ function native(name: string, f: (...values: Value[]) => Value): KVPair {
         throw new Error(`Invalid native function (should have one or more args): ${f}`);
     }
 
-    return { key: name, value: curried };
+    return ctxEntry(name, curried);
 }
 
 function unboxNumber(x: Value): number {
@@ -192,10 +190,10 @@ function nativeBi(name: string, f: (x: number, y: number) => number) {
     });
 }
 
-function pair(key: string, value: Value): KVPair {
-    return { key: key, value: value };
+function ctxEntry(key: string, value: Value): CtxEntry {
+    return [key, value];
 }
 
-function makeContext(ctx: Context, entries: KVPair[]): Context {
-    return entries.reduce<Context>((ctx, e) => set(ctx, e.key, e.value), ctx);
+function makeContext(ctx: Context, entries: CtxEntry[]): Context {
+    return entries.reduce<Context>((ctx, e) => set(ctx, e[0], e[1]), ctx);
 }

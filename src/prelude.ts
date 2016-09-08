@@ -7,7 +7,7 @@ export {
     // Nothing, Nil
 
     /* functions */
-    cons, just, fromJust
+    just, fromJust, cons, lookup
 }
 
 type Maybe<T> = { kind: 'nothing' }
@@ -34,4 +34,16 @@ export const Nil = { kind: 'nil' as 'nil' }; // TYH
 
 function cons<T>(x: T, xs: List<T>): List<T> {
     return { kind: 'cons', val: x, rest: xs };
+}
+
+function lookup<K, V>(list: List<[K, V]>, x: K): Maybe<V> {
+    if (list.kind === 'nil') {
+        return Nothing;
+    }
+
+    if (list.val[0] === x) {
+        return just(list.val[1]);
+    }
+
+    return lookup(list.rest, x);
 }

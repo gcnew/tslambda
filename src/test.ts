@@ -15,6 +15,13 @@ console.log(show(
 console.log(show(
     evalExpr(
         prelude,
+        fromJust(parse('- 7 (/ 4 2)'))
+    )
+));
+
+console.log(show(
+    evalExpr(
+        prelude,
         fromJust(parse('head (Cons 123 Nil)'))
     )
 ));
