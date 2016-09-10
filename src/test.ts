@@ -6,6 +6,12 @@ import { show, evalExpr } from './tslambda'
 
 
 console.log(show(
+    fromJust(parse('λf.f (λx.x) + 1'))
+));
+
+parse('λf.f λx.x + 1').kind === 'nothing' || fail('What a parser :d');
+
+console.log(show(
     fromJust(parse('(λf.λx.f x) + 1'))
 ));
 
@@ -43,3 +49,7 @@ console.log(show(
         fromJust(parse('head Nil'))
     )
 ));
+
+function fail(msg: string) {
+    throw new Error(msg);
+}

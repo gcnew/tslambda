@@ -96,25 +96,27 @@ const parseLambda = parseCombine4(  // TYH -- : Parser<LambdaDef>
     (_1, param, _2, body) => lam(param, body)
 );
 
-// ExprNoAp = Lambda
-//          | Literal
+// ExprNoAp = Literal
 //          | Ref           -- id <$> ref
 //          | '(' Expr ')'
-const parseExprNoAp: Parser<Expr> = parseAlt4(
-    parseLambda,
+const parseExprNoAp: Parser<Expr> = parseAlt3(
     parseLiteral,
     parseMap(parseId, ref),
     parseCombine3(parsePunct('('), tokens => parseExpr(tokens), parsePunct(')'), (_1, e, _2) => e),
 );
 
-// Expr = ExprNoAp (' ' ExprNoAp)*
-let parseExpr: Parser<Expr> = parseCombine(
-    parseExprNoAp,
-    parseMany(
-        parseCombine(parseWs, parseExprNoAp, (_, expr) => expr)
-    ),
-    (head, rest) => rest.reduce(ap, head)
-)
+// Expr = Lambda
+//      | ExprNoAp (' ' ExprNoAp)*
+let parseExpr: Parser<Expr> = parseAlt(
+    parseLambda,
+    parseCombine(
+        parseExprNoAp,
+        parseMany(
+            parseCombine(parseWs, parseExprNoAp, (_, expr) => expr)
+        ),
+        (head, rest) => rest.reduce(ap, head)
+    )
+);
 
 function parseMap<A, B>(p: Parser<A>, f: (a: A) => B): Parser<B> {
     return (tokens) => {
@@ -138,8 +140,8 @@ function parseAlt<A, B>(p1: Parser<A>, p2: Parser<B>): Parser<A|B> {
     };
 }
 
-function parseAlt4<A, B, C, D>(p1: Parser<A>, p2: Parser<B>, p3: Parser<C>, p4: Parser<D>): Parser<A|B|C|D> {
-    return parseAltAll([ p1, p2, p3, p4 ]);
+function parseAlt3<A, B, C>(p1: Parser<A>, p2: Parser<B>, p3: Parser<C>): Parser<A|B|C> {
+    return parseAltAll([ p1, p2, p3 ]);
 }
 
 function parseAltAll<T>(parsers: Parser<any>[]): Parser<any> {
