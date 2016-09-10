@@ -59,6 +59,19 @@ function lit(value: number): Literal {
     return { kind: 'literal', value: value };
 }
 
+function isAtomic(expr: Expr) {
+    switch (expr.kind) {
+        case 'lambda_def':
+        case 'application':
+            return false;
+
+        case 'reference':
+        case 'literal':
+        case 'native':
+            return true;
+    }
+}
+
 function show(expr: Expr|Value): string {
     switch (expr.kind) {
         case 'literal':
@@ -67,9 +80,18 @@ function show(expr: Expr|Value): string {
         case 'reference':
             return expr.name;
 
-        case 'application':
-            // TODO: precedence
-            return show(expr.func) + ' ' + show(expr.arg);
+        case 'application': {
+            // TODO: use precedence levels?
+            const funcSource = isAtomic(expr.func) || (expr.func.kind === 'application')
+                ? show (expr.func)
+                : '(' + show(expr.func) + ')';
+
+            const argSource = isAtomic(expr.arg)
+                ? show(expr.arg)
+                : '(' + show(expr.arg) + ')';
+
+            return funcSource + ' ' + argSource;
+        }
 
         case 'lambda':
         case 'lambda_def':
@@ -173,7 +195,7 @@ function native(name: string, f: (...values: Value[]) => Value): CtxEntry {
 
 function unboxNumber(x: Value): number {
     if (x.kind !== 'literal') {
-        throw new Error(`Not a number: ${x}`);
+        throw new Error(`Not a number: ${show(x)}`);
     }
 
     return x.value;
