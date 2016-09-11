@@ -75,6 +75,7 @@ const parseId: Parser<string> = (tokens) => {
     return ret(tokens.val.value, tokens.rest);
 }
 
+// Ws = <ws>
 const parseWs: Parser<string> = (tokens) => {
     if (tokens.kind === 'nil') {
         return Nothing;
@@ -88,7 +89,7 @@ const parseWs: Parser<string> = (tokens) => {
 }
 
 // Lambda = 'λ' Id '.' Expr
-const parseLambda = parseCombine4(  // TYH -- : Parser<LambdaDef>
+const parseLambda: Parser<LambdaDef> = parseCombine4(
     parsePunct('λ'),
     parseId,
     parsePunct('.'),
@@ -171,7 +172,7 @@ function parseCombine4<A, B, C, D, E>(
     p3: Parser<C>,
     p4: Parser<D>,
     f: (a: A, b: B, c: C, d: D) => E
-): Parser<D> {
+): Parser<E> {
     return parseCombineAll([ p1, p2, p3, p4 ], f);
 }
 
