@@ -1,5 +1,5 @@
 
-import { List, Nil, cons, lookup } from './prelude';
+import { List, Nil, cons, assoc as set, lookup, assertNever } from './prelude';
 
 export {
     /* Types */
@@ -111,10 +111,6 @@ function get(ctx: Context, key: string): Value {
     return res.value;
 }
 
-function set(ctx: Context, key: string, value: Value): Context {
-    return cons<CtxEntry>([key, value], ctx);
-}
-
 function evalExpr(ctx: Context, expr: Expr): Value {
     switch (expr.kind) {
         case 'literal':     return expr;
@@ -150,10 +146,6 @@ function evalExpr(ctx: Context, expr: Expr): Value {
             return assertNever(func); // TYH: this should not be needed
         }
     }
-}
-
-function assertNever(x: never): never {
-    throw new Error(`Assert: not never: ${x}`);
 }
 
 function parameterNames(f: Function): string[] {
