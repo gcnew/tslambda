@@ -1,47 +1,179 @@
 
-import { Expr, show } from './tslambda'
-import { Maybe, Nothing, List, Nil, just, fromJust, lookup, cons, assertNever } from './prelude'
+import { Expr, Reference, LambdaDef, Application, show } from './tslambda'
+import {
+    State, bindSt, returnSt, getSt, putSt,
+
+    Maybe, Nothing, just, fromJust, bindMb,
+
+    List, Nil, lookup, cons, find, unassoc,
+
+    assertNever
+} from './prelude'
 
 export {
     pub_infer as infer
 }
 
-
-type TyMono  = { kind: 'ty_mono', id: string }
-type TyPoly  = { kind: 'ty_poly', id: string }
-type TyArrow = { kind: 'ty_arrow', from: Type, to: Type }
+type TyPoly  = { kind: 'ty_poly',  id: number }
+type TyMono  = { kind: 'ty_mono',  id: number, name?: string }
+type TyArrow = { kind: 'ty_arrow', id: number, from: Type, to: Type }
 
 type Type = TyMono
           | TyPoly
           | TyArrow
 
-type InferCtx = List<[string, Type]>
-type InferRes = Maybe<[InferCtx, Type]>
+type InferCtx = {
+    idCounter: number,
+    bindMap: List<[string, number]>,
+    typeMap: List<[number, Type]>
+}
 
 type TypeExt = { type: Type }
+type InferRes = Maybe<[InferCtx, Type]>
 
-const int = mono('int');
-let typeId = 0;
+// type MInfer a = StateT InferRes Maybe a
+type MInfer<T> = (st: InferCtx) => Maybe<[T, InferCtx]>
 
-function mono(id: string): TyMono {
-    return { kind: 'ty_mono', id: id };
+function bindMi<T, R>(prev: MInfer<T>, f: (x: T) => MInfer<R>): MInfer<R> {
+    return st => {
+        const res = prev(st);
+        return bindMb(res, ([x, newSt]) => f(x)(newSt));
+    };
 }
 
-function poly(id: string): TyPoly {
-    return { kind: 'ty_poly', id: 'a' + ++typeId };
+function returnMi<T>(x: T): MInfer<T> {
+    return (st) => just<[T, InferCtx]>([x, st]);
 }
 
-function arrow(from: Type, to: Type): TyArrow {
-    return { kind: 'ty_arrow', from: from, to: to };
+const getMi: MInfer<InferCtx> = st => {
+    return just<[InferCtx, InferCtx]>([st, st]);
+};
+
+function putMi(x: InferCtx): MInfer<{}> {
+    return (_) => just<[{}, InferCtx]>([{}, x]);
+}
+
+const failMi = (x: any) => Nothing;
+
+function mkType<T extends Type>(f: (id: number) => T): MInfer<T> {
+    /**
+         do st@{ idCounter, bindMap, typeMap } <- getMi
+
+            let key = name || 'm' + st.idCounter
+                type = { kind: 'ty_mono', name: key, id: idCounter }
+                newCtx = {
+                    idCountr: idCounter + 1,
+                    bindMap: cons([key, idCounter], bindMap),
+                    typeMap: cons([idCounter, type], typeMap)
+                }
+
+            putMi newCtx
+            returnMi type
+    **/
+
+    return bindMi(getMi, ({idCounter, bindMap, typeMap}) => {
+        const type = f(idCounter);
+        const newContext = {
+            bindMap: bindMap,
+
+            idCounter: idCounter + 1,
+            typeMap: cons<[number, Type]>([idCounter, type], typeMap)
+        };
+
+        return bindMi(
+            putMi(newContext), (_) =>
+            returnMi(type)
+        );
+    });
+}
+
+const poly: MInfer<TyPoly> = mkType(id => ({ kind: 'ty_poly', id: id }));
+
+function mono(name?: string): MInfer<TyMono> {
+    return mkType(id => ({ kind: 'ty_mono', id: id, name: name }));
+}
+
+function arrow(from: Type, to: Type): MInfer<TyArrow> {
+    return mkType(id => ({ kind: 'ty_arrow', id: id, from: from, to: to }));
+}
+
+function bindVar(name: string, type: Type): MInfer<{}> {
+    return bindMi(getMi, ({idCounter, bindMap, typeMap}) => {
+        const newContext = {
+            typeMap: typeMap,
+            idCounter: idCounter,
+
+            bindMap: cons<[string, number]>([name, type.id], bindMap)
+        };
+
+        return putMi(newContext);
+    });
+}
+
+function unbindVar(name: string): MInfer<{}> {
+    return bindMi(getMi, ({idCounter, bindMap, typeMap}) => {
+        const newContext = {
+            typeMap: typeMap,
+            idCounter: idCounter,
+            bindMap: unassoc(bindMap, name)
+        };
+
+        return putMi(newContext);
+    });
+}
+
+const { int, nativeContext } = (() => {
+    /**
+        do bottom    <- poly
+           int       <- mono('int')
+           int2int   <- arrow(int, int)
+           arithType <- arrow(int, int2int)
+
+           bindVar('+', arithType)
+           bindVar('-', arithType)
+           bindVar('/', arithType)
+           bindVar('*', arithType)
+           bindVar('⊥', bottom)
+
+           ctx <- getMi
+           return { int, nativeContext: ctx }
+    */
+
+    const initial = { idCounter: 0, bindMap: Nil, typeMap: Nil };
+    const comp = bindMi(poly,                bottom =>
+                 bindMi(mono('int'),         int =>
+                 bindMi(arrow(int, int),     int2int =>
+                 bindMi(arrow(int, int2int), arithType =>
+
+                 bindMi(bindVar('+', arithType), _ =>
+                 bindMi(bindVar('-', arithType), _ =>
+                 bindMi(bindVar('/', arithType), _ =>
+                 bindMi(bindVar('*', arithType), _ =>
+                 bindMi(bindVar('⊥', bottom),    _ =>
+
+                 bindMi(getMi,   ctx =>
+                 returnMi({ int, nativeContext: ctx })
+
+                 ))))))))));
+
+    return fromJust(comp(initial))[0];
+})();
+
+function mkNameFromId(id: number) {
+    const alphabet = 'abcdefghijklmnopqrstuvwxyz';
+    const idx = (id / alphabet.length) | 0;
+    const suffix = idx !== 0 ? idx : '';
+
+    return alphabet[id % alphabet.length] + suffix;
 }
 
 function showType(type: Type): string {
     switch (type.kind) {
         case 'ty_mono':
-            return type.id;
+            return type.name || mkNameFromId(type.id);
 
         case 'ty_poly':
-            return type.id;
+            return mkNameFromId(type.id);
 
         case 'ty_arrow': {
             const fromStr = type.from.kind !== 'ty_arrow'
@@ -53,16 +185,20 @@ function showType(type: Type): string {
     }
 }
 
-function printContext(ctx: InferCtx) {
-    let str = '{\n';
+function getTypeById(ctx: InferCtx, typeId: number): Type {
+    return fromJust(lookup(ctx.typeMap, typeId), 'ASSERT: Type not found');
+}
 
-    let c = ctx;
+function printContext(ctx: InferCtx) {
+    let str = '';
+
+    let c = ctx.bindMap;
     while (c.kind !== 'nil') {
-        str += pad(c.val[0] + ':', 5) + showType(c.val[1]) + ',\n';
+        str += pad(c.val[0] + ':', 5) + showType(getTypeById(ctx, c.val[1])) + ',\n';
         c = c.rest;
     }
 
-    console.log(str + '}');
+    console.log(str);
 }
 
 function pad(str: string, len: number): string {
@@ -73,264 +209,205 @@ function pad(str: string, len: number): string {
 }
 
 function pub_infer(expr: Expr): void {
-    const res = infer(initialCtx, expr);
-    let type = res.kind === 'nothing'
-        ? 'Nothing'
-        : showType(res.value[1]);
+    // const res = infer(initialCtx, expr);
+    // let type = res.kind === 'nothing'
+    //     ? 'Nothing'
+    //     : showType(res.value[1]);
 
-    console.log(pad(show(expr), 25) + ' :: ' + type);
+    // console.log(pad(show(expr), 25) + ' :: ' + type);
+    printContext(nativeContext);
 }
 
-function setType(ctx: InferCtx, expr: Expr, type: Type): InferCtx {
+function infer(expr: Expr): MInfer<Type> {
     switch (expr.kind) {
-        case 'native':
-        case 'literal':
-        case 'lambda_def':
-            return ctx;
-
-        case 'reference':
-            return cons<[string, Type]>([expr.name, type], ctx);
-
-        case 'application':
-            if (type.kind !== 'ty_arrow') {
-                throw new Error('WTF: ' + showType(type));
-            }
-
-            return setType(setType(ctx, expr.arg, type.to), expr.func, type.from);
+        case 'literal':     return returnMi(int);
+        case 'native':      return failMi;
+        case 'reference':   return inferReference(expr);
+        case 'application': return inferApplication(expr);
+        case 'lambda_def':  return inferLambda(expr);
     }
 }
 
-function infer(ctx: InferCtx, expr: Expr): InferRes {
-    switch (expr.kind) {
-        case 'literal':
-            return ret(ctx, int);
-
-        case 'native':
-            return Nothing;
-
-        case 'reference': {
-            const res = lookup(ctx, expr.name);
-            if (res.kind === 'nothing') {
-                return Nothing;
-            }
-
-            return ret(ctx, res.value);
+function inferReference(expr: Reference): MInfer<Type> {
+    return bindMi(getMi, ctx => {
+        const res = lookup(ctx.bindMap, expr.name);
+        if (res.kind === 'nothing') {
+            return failMi;
         }
 
-        case 'application': {
-            const argRes = infer(ctx, expr.arg);
-            if (argRes.kind === 'nothing') {
-                return Nothing;
-            }
-
-            const [argCtx, argType] = argRes.value;
-            const funcRes = infer(argCtx, expr.func);
-            if (funcRes.kind === 'nothing') {
-                return Nothing;
-            }
-
-
-            const [funCtx, funType] = funcRes.value;
-            if (funType.kind !== 'ty_arrow') {
-                if (funType.kind === 'ty_mono') {
-                    console.log(`Not a function: ${showType(funType)}`);
-                    return Nothing;
-                }
-
-                const pType = poly('a');
-                const rType = arrow(argType, pType);
-
-                return ret(
-                    setType(funCtx, expr.func, rType),
-                    pType
-                );
-            }
-
-            let rCtx: InferCtx;
-            let applied: Maybe<Type>;
-            if (argType.kind === 'ty_poly') {
-                const frType = instantiate(funType, argType, funType.from);
-                rCtx = setType(funCtx, expr.func, frType);
-                applied = typeApply(frType, funType.from);
-            } else {
-                rCtx = funCtx;
-                applied = typeApply(funType, argType)
-            }
-
-            if (applied.kind === 'nothing') {
-                return Nothing;
-            }
-
-            return ret(rCtx, applied.value);
-        }
-
-        case 'lambda_def': {
-            const newCtx = cons<[string, Type]>([expr.param, poly('a')], ctx);
-
-            const bodyRes = infer(newCtx, expr.body);
-            if (bodyRes.kind === 'nothing') {
-                return Nothing;
-            }
-
-            const [bodyCtx, bodyType] = bodyRes.value;
-            const paramType = fromJust(lookup(bodyCtx, expr.param));
-
-            const resCtx = cons<[string, Type]>([expr.param, paramType], ctx);
-            return ret(bodyCtx, arrow(paramType, bodyType));
-        }
-    }
-
-    printContext(ctx);
-    return null as any;;
+        return returnMi(getTypeById(ctx, res.value));
+    });
 }
 
-function instantiate(type: Type, oldType: TyPoly, newType: Type): Type {
-    switch (type.kind) {
-        case 'ty_mono':
-            return type;
+function inferApplication(exp: Application): MInfer<Type> {
+    return null as any;
+    // const argRes = infer(ctx, expr.arg);
+    // if (argRes.kind === 'nothing') {
+    //     return Nothing;
+    // }
 
-        case 'ty_poly':
-            return type === oldType ? newType : type;
+    // const [argCtx, argType] = argRes.value;
+    // const funcRes = infer(argCtx, expr.func);
+    // if (funcRes.kind === 'nothing') {
+    //     return Nothing;
+    // }
 
-        case 'ty_arrow': {
-            const head = instantiate(type.from, oldType, newType);
-            const rest = instantiate(type.to, oldType, newType);
 
-            if (head === type.from && rest === type.to) {
-                return type;
-            }
+    // const [funCtx, funType] = funcRes.value;
+    // if (funType.kind !== 'ty_arrow') {
+    //     if (funType.kind === 'ty_mono') {
+    //         console.log(`Not a function: ${showType(funType)}`);
+    //         return Nothing;
+    //     }
 
-            return arrow(head, rest);
-        }
-    }
+    //     const pType = poly();
+    //     const rType = arrow(argType, pType);
+
+    //     return ret(
+    //         setType(funCtx, expr.func, rType),
+    //         pType
+    //     );
+    // }
+
+    // let rCtx: InferCtx;
+    // let applied: Maybe<Type>;
+    // if (argType.kind === 'ty_poly') {
+    //     const frType = instantiate(funType, argType, funType.from);
+    //     rCtx = setType(funCtx, expr.func, frType);
+    //     applied = typeApply(frType, funType.from);
+    // } else {
+    //     rCtx = funCtx;
+    //     applied = typeApply(funType, argType)
+    // }
+
+    // if (applied.kind === 'nothing') {
+    //     return Nothing;
+    // }
+
+    // return ret(rCtx, applied.value);
 }
 
-function typeApply(to: Type, x: Type): Maybe<Type> {
-    if (to.kind !== 'ty_arrow') {
-        return Nothing;
-    }
-
-    if (x.kind === 'ty_mono') {
-        switch (to.from.kind) {
-            case 'ty_arrow':
-                return Nothing;
-
-            case 'ty_mono':
-                if (x.id !== to.from.id) {
-                    return Nothing;
-                }
-
-                return just(to.to);
-
-            case 'ty_poly':
-                return just(instantiate(to, to.from, x));
-        }
-
-        return assertNever(to.from);
-    }
-
-    if (x.kind === 'ty_poly') {
-        switch (to.from.kind) {
-            case 'ty_arrow':
-            case 'ty_mono':
-                return Nothing;
-
-            case 'ty_poly':
-                return just(instantiate(to, to.from, x));
-        }
-
-        return assertNever(to.from);
-    }
-
-    if (x.kind === 'ty_arrow') {
-        switch (to.from.kind) {
-            case 'ty_mono':
-                return Nothing;
-
-            case 'ty_poly':
-                return just(instantiate(to, to.from, x));
-
-            case 'ty_arrow': {
-                let php = to.from;
-
-                outer: while (true) {
-                    let bbc = <Type> php;
-                    let jjk: Type = x;
-                    // console.log(showType(bbc));
-                    // console.log(showType(jjk));
-
-                    while (true) {
-                        if (bbc === jjk) {
-                            return just(php);
-                        }
-
-                        if (bbc.kind === 'ty_poly') {
-                            php = <TyArrow> instantiate(php, bbc, jjk);
-                            continue outer;
-                        }
-
-                        if (bbc.kind === 'ty_arrow' && jjk.kind === 'ty_arrow') {
-                            if (bbc.from !== jjk.from) {
-                                bbc = bbc.from;
-                                jjk = jjk.from;
-                            } else {
-                                bbc = bbc.to;
-                                jjk = jjk.to;
-                            }
-
-                            continue;
-                        }
-
-                        return Nothing;
-                    }
-                }
-            }
-        }
-
-        return assertNever(to.from);
-    }
-
-    return assertNever(x);
+function inferLambda(expr: LambdaDef): MInfer<Type> {
+    return bindMi(poly,                   a =>
+           bindMi(bindVar(expr.param, a), _ =>
+           bindMi(infer(expr.body),       bodyType =>
+           bindMi(unbindVar(expr.param),  _ =>
+               arrow(a, bodyType)
+           ))));
 }
 
+// function instantiate(type: Type, oldType: TyPoly, newType: Type): Type {
+//     switch (type.kind) {
+//         case 'ty_mono':
+//             return type;
 
-const arithType = arrow(int, arrow(int, int)); // int -> int -> int
-const bottomType = poly('a');
+//         case 'ty_poly':
+//             return type === oldType ? newType : type;
 
-const nativeTypes = {
-    '+': arithType,
-    '-': arithType,
-    '/': arithType,
-    '*': arithType,
-    '⊥': bottomType
-};
+//         case 'ty_arrow': {
+//             const head = instantiate(type.from, oldType, newType);
+//             const rest = instantiate(type.to, oldType, newType);
 
-const initialCtx = Object.keys(nativeTypes).reduce<InferCtx>(
-    (ctx, k) => cons<[string, Type]>([k, (<any> nativeTypes)[k]], ctx),  // TYH
-    Nil
-);
+//             if (head === type.from && rest === type.to) {
+//                 return type;
+//             }
 
-function ret(ctx: InferCtx, type: Type): InferRes {
-    return just<[InferCtx, Type]>([ctx, type]);
-}
+//             return arrow(head, rest);
+//         }
+//     }
+// }
 
-function withType(exp: Expr, type: Type): Expr & TypeExt {
-    return extend(exp, { type: type });
-}
+// function typeApply(to: Type, x: Type): Maybe<Type> {
+//     if (to.kind !== 'ty_arrow') {
+//         return Nothing;
+//     }
 
-function extend<T, U>(base: T, ext: U): T & U {
-    const retval: any = {};
+//     if (x.kind === 'ty_mono') {
+//         switch (to.from.kind) {
+//             case 'ty_arrow':
+//                 return Nothing;
 
-    for (const key of Object.keys(base)) {
-        retval[key] = (<any> base)[key];
-    }
+//             case 'ty_mono':
+//                 if (x.id !== to.from.id) {
+//                     return Nothing;
+//                 }
 
-    for (const key of Object.keys(ext)) {
-        retval[key] = (<any> ext)[key];
-    }
+//                 return just(to.to);
 
-    return retval;
-}
+//             case 'ty_poly':
+//                 return just(instantiate(to, to.from, x));
+//         }
+
+//         return assertNever(to.from);
+//     }
+
+//     if (x.kind === 'ty_poly') {
+//         switch (to.from.kind) {
+//             case 'ty_arrow':
+//             case 'ty_mono':
+//                 return Nothing;
+
+//             case 'ty_poly':
+//                 return just(instantiate(to, to.from, x));
+//         }
+
+//         return assertNever(to.from);
+//     }
+
+//     if (x.kind === 'ty_arrow') {
+//         switch (to.from.kind) {
+//             case 'ty_mono':
+//                 return Nothing;
+
+//             case 'ty_poly':
+//                 return just(instantiate(to, to.from, x));
+
+//             case 'ty_arrow': {
+//                 let php = to.from;
+
+//                 outer: while (true) {
+//                     let bbc = <Type> php;
+//                     let jjk: Type = x;
+//                     // console.log(showType(bbc));
+//                     // console.log(showType(jjk));
+
+//                     while (true) {
+//                         if (bbc === jjk) {
+//                             return just(php);
+//                         }
+
+//                         if (bbc.kind === 'ty_poly') {
+//                             php = <TyArrow> instantiate(php, bbc, jjk);
+//                             continue outer;
+//                         }
+
+//                         if (bbc.kind === 'ty_arrow' && jjk.kind === 'ty_arrow') {
+//                             if (bbc.from !== jjk.from) {
+//                                 bbc = bbc.from;
+//                                 jjk = jjk.from;
+//                             } else {
+//                                 bbc = bbc.to;
+//                                 jjk = jjk.to;
+//                             }
+
+//                             continue;
+//                         }
+
+//                         return Nothing;
+//                     }
+//                 }
+//             }
+//         }
+
+//         return assertNever(to.from);
+//     }
+
+//     return assertNever(x);
+// }
+
+// function ret(ctx: InferCtx, type: Type): InferRes {
+//     return just<[InferCtx, Type]>([ctx, type]);
+// }
 
 /*
 

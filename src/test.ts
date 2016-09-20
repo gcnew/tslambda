@@ -11,6 +11,7 @@ infer(fromJust(parse('λf.λx.f x'))); // (a -> b) -> a -> b
 infer(fromJust(parse('λt.λf.t'))); // a -> b -> a
 infer(fromJust(parse('(λf.λx.f x) + 1'))); // ((a -> b) -> a -> b) (num -> num -> num) num => num -> num
 infer(fromJust(parse('λf.f 1'))); // (int -> a) -> a
+infer(fromJust(parse('λx.λx.x'))); // a -> b -> b
 infer(fromJust(parse('λx.λxs.λcc.λcn.cc x xs')));
 infer(fromJust(parse('λx.x x'))); // Nothing
 infer(fromJust(parse('(λf.f 1) 1'))); // Nothing
