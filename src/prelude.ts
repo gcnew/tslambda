@@ -3,6 +3,8 @@ export {
     /* Types */
     Maybe, List, State,
 
+    Either, left, right,
+
     /* Data */
     // Nothing, Nil
 
@@ -110,7 +112,7 @@ function set<K, V>(list: List<[K, V]>, key: K, value: V): List<[K, V]> {
 }
 
 function removeAll<K, V>(list: List<[K, V]>, key: K): List<[K, V]> {
-    return filter(list, ([x, _]) => x === key);
+    return filter(list, ([x, _]) => x !== key);
 }
 
 // TODO: assoc key value list

@@ -3,7 +3,9 @@ import { Expr, LambdaDef, Application, show } from './tslambda'
 import {
     Maybe, Nothing, just, fromJust, bindMb,
 
-    List, Nil, lookup, cons, unassoc, map,
+    Either, left, right,
+
+    List, Nil, lookup, assoc, set, unassoc, map,
 } from './prelude'
 
 export {
@@ -21,7 +23,7 @@ type Type = TyMono
 type InferCtx = {
     idCounter: number,
     bindMap: List<[string, number]>,
-    typeMap: List<[number, Type]>
+    typeMap: List<[number, Either<number, Type>]>
 }
 
 type TypeExt = { type: Type }
@@ -59,8 +61,8 @@ function mkType<T extends Type>(f: (id: number) => T): MInfer<T> {
             let newCtx = {
                     bindMap: bindMap,
 
-                    idCountr: idCounter + 1,
-                    typeMap: cons<[number, Type]> [idCounter, type] typeMap
+                    idCounter: idCounter + 1,
+                    typeMap: assoc typeMap idCounter (right type)
                 }
 
             putMi newCtx
@@ -73,7 +75,7 @@ function mkType<T extends Type>(f: (id: number) => T): MInfer<T> {
             bindMap: bindMap,
 
             idCounter: idCounter + 1,
-            typeMap: cons<[number, Type]>([idCounter, type], typeMap)
+            typeMap: assoc(typeMap, idCounter, right(type))
         };
 
         return bindMi(
@@ -99,7 +101,7 @@ function bindVar(name: string, type: Type): MInfer<{}> {
             typeMap: typeMap,
             idCounter: idCounter,
 
-            bindMap: cons<[string, number]>([name, type.id], bindMap)
+            bindMap: assoc(bindMap, name, type.id)
         };
 
         return putMi(newContext);
@@ -141,13 +143,9 @@ function getVarType(name: string): MInfer<Type> {
 function updateType(oldType: Type, newType: Type): MInfer<Type> {
     return bindMi(getMi, ({idCounter, bindMap, typeMap}) => {
         const newContext: InferCtx = {
-            typeMap: typeMap,
+            typeMap: set(typeMap, oldType.id, left(newType.id)),
             idCounter: idCounter,
-
-            bindMap: map<[string, number], [string, number]>(
-                bindMap,
-                (tuple) => tuple[1] === oldType.id ? [tuple[0], newType.id] : tuple
-            )
+            bindMap: bindMap
         };
 
         return bindMi(putMi(newContext), _ =>
@@ -221,7 +219,7 @@ function showType(ctx: InferCtx, type: Type): string {
 }
 
 function getTypeUnsafe(ctx: InferCtx, typeId: number): Type {
-    return fromJust(lookup(ctx.typeMap, typeId), 'ASSERT: Type not found');
+    return fromJust(getType(typeId)(ctx), 'ASSERT: Type not found')[0];
 }
 
 function getType(typeId: number): MInfer<Type> {
@@ -231,7 +229,11 @@ function getType(typeId: number): MInfer<Type> {
             return failMi;
         }
 
-        return returnMi(res.value);
+        if (res.value.kind === 'right') {
+            return returnMi(res.value.value);
+        }
+
+        return getType(res.value.value);
     });
 }
 
@@ -288,15 +290,9 @@ function inferLambda(expr: LambdaDef): MInfer<Type> {
     return bindMi(poly,                   a =>
            bindMi(bindVar(expr.param, a), _ =>
            bindMi(infer(expr.body),       bodyType =>
-           bindMi(getVarType(expr.param), a2 =>
-           bindMi(unbindVar(expr.param),  _ =>
-           arrow(a2, bodyType))))));
-
-           /*
            bindMi(unbindVar(expr.param),  _ =>
                arrow(a, bodyType)
            ))));
-           */
 }
 
 function inferApplication(expr: Application): MInfer<Type> {
@@ -344,38 +340,51 @@ function applyType(func: TyArrow, arg: Type): MInfer<TyArrow> {
 }
 
 function applyType0(func: TyArrow, from: Type, arg: Type): MInfer<TyArrow> {
-    if (from.id === arg.id) {
-        return returnMi(func);
-    }
-
-    if (from.kind === 'ty_mono') {
-        if (arg.kind === 'ty_poly') {
-            // TODO: should we update here?
-            return bindMi(updateType(arg, from), _ =>
-                   returnMi(func));
+    return bindMi(typeEq(from, arg),  eq => {
+        if (eq) {
+            return returnMi(func);
         }
 
-        return failMi;
+        if (from.kind === 'ty_mono') {
+            if (arg.kind === 'ty_poly') {
+                // TODO: should we update here?
+                return bindMi(updateType(arg, from), _ =>
+                       returnMi(func));
+            }
+
+            return failMi;
+        }
+
+        if (from.kind === 'ty_poly') {
+            return bindMi(instantiate(func, from, arg), newType =>
+                   newType.kind !== 'ty_arrow'
+                       ? failMi
+                       : returnMi(newType));
+        }
+
+        if (arg.kind !== 'ty_arrow') {
+            return failMi;
+        }
+
+        return bindMi(getType(from.from),                    leftFrom  =>
+               bindMi(getType(arg.from),                     rightFrom =>
+               bindMi(applyType0(func, leftFrom, rightFrom), newFunc   =>
+
+               bindMi(getType(from.to), leftTo  =>
+               bindMi(getType(arg.to),  rightTo =>
+               applyType0(newFunc, leftTo, rightTo))))));
+    });
+}
+
+function typeEq(t1: Type, t2: Type): MInfer<boolean> {
+    if (t1.id === t2.id) {
+        return returnMi(true);
     }
 
-    if (from.kind === 'ty_poly') {
-        return bindMi(instantiate(func, from, arg), newType =>
-               newType.kind !== 'ty_arrow'
-                   ? failMi
-                   : returnMi(newType));
-    }
-
-    if (arg.kind !== 'ty_arrow') {
-        return failMi;
-    }
-
-    return bindMi(getType(from.from),                    leftFrom  =>
-           bindMi(getType(arg.from),                     rightFrom =>
-           bindMi(applyType0(func, leftFrom, rightFrom), newFunc   =>
-
-           bindMi(getType(from.to), leftTo  =>
-           bindMi(getType(arg.to),  rightTo =>
-           applyType0(newFunc, leftTo, rightTo))))));
+    return bindMi(getType(t1.id), realT1 =>
+           bindMi(getType(t2.id), realT2 =>
+               returnMi(realT1.id === realT2.id)
+           ));
 }
 
 function instantiate(type: Type, oldType: TyPoly, newType: Type): MInfer<Type> {
@@ -384,21 +393,22 @@ function instantiate(type: Type, oldType: TyPoly, newType: Type): MInfer<Type> {
             return returnMi(type);
 
         case 'ty_poly':
-            // TODO type == type ?
-            return returnMi(type.id === oldType.id ? newType : type);
+            return bindMi(typeEq(type, oldType), eq =>
+                   returnMi(eq ? newType : type));
 
         case 'ty_arrow': {
             return bindMi(getType(type.from), fromType =>
                    bindMi(getType(type.from), toType =>
 
                    bindMi(instantiate(fromType, oldType, newType), head =>
-                   bindMi(instantiate(toType, oldType, newType),   rest => {
-                       if (head === fromType && rest === toType) {
-                           return returnMi(type);
-                       }
+                   bindMi(instantiate(toType, oldType, newType),   rest =>
 
-                       return arrow(head, rest);
-                   }))));
+                   bindMi(typeEq(head, fromType), eqHead =>
+                   bindMi(typeEq(rest, toType),   eqRest =>
+                       eqHead && eqRest
+                           ? returnMi(type)
+                           : arrow(head, rest)
+                   ))))));
         }
     }
 }
