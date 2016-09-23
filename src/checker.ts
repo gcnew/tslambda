@@ -198,28 +198,27 @@ function mkNameFromId(id: number) {
     return alphabet[id % alphabet.length] + suffix;
 }
 
-function showType(ctx: InferCtx, type: Type): string {
+function showType(type: Type): MInfer<string> {
     switch (type.kind) {
         case 'ty_mono':
-            return type.name || mkNameFromId(type.id);
+            return returnMi(type.name || mkNameFromId(type.id));
 
         case 'ty_poly':
-            return mkNameFromId(type.id);
+            return returnMi(mkNameFromId(type.id));
 
         case 'ty_arrow': {
-            const fromType = getTypeUnsafe(ctx, type.from);
-            const fromStr = fromType.kind !== 'ty_arrow'
-                ? showType(ctx, fromType)
-                : '(' + showType(ctx, fromType) + ')';
+            return bindMi(getType(type.from), fromType =>
+                   bindMi(showType(fromType), fromStr0 =>
+                   bindMi(getType(type.to),   toType =>
+                   bindMi(showType(toType),   toStr => {
+                       let fromStr = fromType.kind !== 'ty_arrow'
+                           ? fromStr0
+                           : '(' + fromStr0 + ')';
 
-            const toType = getTypeUnsafe(ctx, type.to);
-            return fromStr + ' -> ' + showType(ctx, toType);
+                       return returnMi(fromStr + ' -> ' + toStr);
+                   }))));
         }
     }
-}
-
-function getTypeUnsafe(ctx: InferCtx, typeId: number): Type {
-    return fromJust(getType(typeId)(ctx), 'ASSERT: Type not found')[0];
 }
 
 function getType(typeId: number): MInfer<Type> {
@@ -237,30 +236,13 @@ function getType(typeId: number): MInfer<Type> {
     });
 }
 
-function printContext(ctx: InferCtx) {
-    let str = '';
-
-    let c = ctx.bindMap;
-    while (c.kind !== 'nil') {
-        str += pad(c.val[0] + ':', 5) + showType(ctx, getTypeUnsafe(ctx, c.val[1])) + ',\n';
-        c = c.rest;
-    }
-
-    console.log(str);
-}
-
-function pad(str: string, len: number): string {
-    for (let i = str.length; i < len; ++i) {
-        str += ' ';
-    }
-    return str;
-}
-
 function pub_infer(expr: Expr): void {
-    const res = infer(expr)(nativeContext);
+    const mres = bindMi(infer(expr), type => showType(type));
+    const res = mres(nativeContext);
+
     let type = res.kind === 'nothing'
         ? 'Nothing'
-        : showType(res.value[1], res.value[0]);
+        : res.value[0];
 
     console.log(pad(show(expr), 25) + ' :: ' + type);
     // printContext(nativeContext);
@@ -398,7 +380,7 @@ function instantiate(type: Type, oldType: TyPoly, newType: Type): MInfer<Type> {
 
         case 'ty_arrow': {
             return bindMi(getType(type.from), fromType =>
-                   bindMi(getType(type.from), toType =>
+                   bindMi(getType(type.to),   toType =>
 
                    bindMi(instantiate(fromType, oldType, newType), head =>
                    bindMi(instantiate(toType, oldType, newType),   rest =>
@@ -411,4 +393,49 @@ function instantiate(type: Type, oldType: TyPoly, newType: Type): MInfer<Type> {
                    ))))));
         }
     }
+}
+
+/***** Debug utilities *****/
+
+function pad(str: string, len: number): string {
+    for (let i = str.length; i < len; ++i) {
+        str += ' ';
+    }
+    return str;
+}
+
+function showTypeUnsafe(ctx: InferCtx, typeId: number): string {
+    const mres = bindMi(getType(typeId), type => showType(type));
+    return fromJust(mres(ctx))[0];
+}
+
+const printContext: MInfer<void> = bindMi(getMi, st => {
+    let str = '';
+
+    let c = st.bindMap;
+    while (c.kind !== 'nil') {
+        str += pad(c.val[0] + ':', 5) + showTypeUnsafe(st, c.val[1]) + ',\n';
+        c = c.rest;
+    }
+
+    console.log(str);
+    return returnMi(undefined);
+});
+
+const printTypes: MInfer<void> = bindMi(getMi, st => {
+    let str = '';
+
+    let c = st.typeMap;
+    while (c.kind !== 'nil') {
+        str += pad(c.val[0] + ':', 5) + showTypeUnsafe(st, c.val[0]) + ',\n';
+        c = c.rest;
+    }
+
+    console.log(str);
+    return returnMi(undefined);
+});
+
+function printType(type: Type): MInfer<void> {
+    return bindMi(showType(type), typeStr =>
+           returnMi(console.log(typeStr)));
 }
