@@ -16,7 +16,7 @@ export {
     /* Map-like */
     lookup, assoc, set, unassoc,
 
-    fold, map, filter, find,
+    fold, foldr, map, filter, find, elem,
 
     assertNever
 }
@@ -141,6 +141,14 @@ function filter<T>(list: List<T>, f: (x: T) => boolean): List<T> {
         : filter(list.rest, f);
 }
 
+function elem<T>(list: List<T>, x: T): boolean {
+    if (list.kind === 'nil') {
+        return false;
+    }
+
+    return list.val === x || elem(list.rest, x);
+}
+
 function map<T, R>(list: List<T>, f: (x: T) => R): List<R> {
     if (list.kind === 'nil') {
         return list;
@@ -155,6 +163,14 @@ function fold<T, A>(list: List<T>, initial: A, f: (acc: A, x: T) => A): A {
     }
 
     return fold(list.rest, f(initial, list.val), f);
+}
+
+function foldr<T, A>(list: List<T>, initial: A, f: (x: T, acc: A) => A): A {
+    if (list.kind === 'nil') {
+        return initial;
+    }
+
+    return f(list.val, foldr(list.rest, initial, f));
 }
 
 function assertNever(x: never): never {

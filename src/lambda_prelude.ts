@@ -32,10 +32,10 @@ const preludeDefs: string[] = [
     'True',  'λt.λf.t',
     'False', 'λt.λf.f',
     'Cons',  'λx.λxs.λcc.λcn.cc x xs',
-    'Nil',   'λcc.λcn.cn Nil',
+    'Nil',   'λcc.λcn.cn',
     'head',  'λxs.xs True ⊥',
     'tail',  'λxs.xs False ⊥',
-    'null',  'λxs.xs (True (True False)) (True True)',
+    'null',  'λxs.xs (True (True False)) True',
     'pair',  'λx.λy.λf.f x y',
     'fst',   'λp.p True',
     'snd',   'λp.p False'

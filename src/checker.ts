@@ -1,11 +1,11 @@
 
-import { Expr, LambdaDef, Application, show } from './tslambda'
+import { Context, Expr, LambdaDef, Application, show } from './tslambda'
 import {
     Maybe, Nothing, just, fromJust, bindMb,
 
     Either, left, right,
 
-    List, Nil, lookup, assoc, set, unassoc, map,
+    List, Nil, lookup, assoc, set, unassoc, map, fold
 } from './prelude'
 
 export {
@@ -236,10 +236,29 @@ function getType(typeId: number): MInfer<Type> {
     });
 }
 
-function pub_infer(expr: Expr): void {
-    const mres = bindMi(infer(expr), type => showType(type));
-    const res = mres(nativeContext);
+function inferGlobals(ctx: Context): MInfer<void> {
+    return fold(ctx, returnMi(undefined), (m, [name, def]) => {
+        if (def.kind === 'lambda') {
+            return failMi;
+        }
 
+        // skip natives
+        if (lookup(nativeContext.bindMap, name).kind === 'just') {
+            return m;
+        }
+
+        return bindMi(infer(def),          type =>
+               bindMi(bindVar(name, type), _    =>
+               m));
+    });
+}
+
+function pub_infer(prelude: Context, expr: Expr): void {
+    const mres = bindMi(inferGlobals(prelude), _ =>
+                 bindMi(infer(expr), type =>
+                 showType(type)));
+
+    const res = mres(nativeContext);
     let type = res.kind === 'nothing'
         ? 'Nothing'
         : res.value[0];
@@ -252,10 +271,52 @@ function infer(expr: Expr): MInfer<Type> {
     switch (expr.kind) {
         case 'literal':     return returnMi(int);
         case 'native':      return failMi;
+
         case 'reference':   return getVarType(expr.name);
+
         case 'lambda_def':  return inferLambda(expr);
         case 'application': return inferApplication(expr);
     }
+}
+
+function collectPolys(type: Type): MInfer<TyPoly[]> {
+    if (type.kind === 'ty_mono') {
+        return returnMi([]);
+    }
+
+    if (type.kind === 'ty_poly') {
+        return returnMi([type]);
+    }
+
+    return bindMi(getType(type.from),     fromType =>
+           bindMi(collectPolys(fromType), fromPolys =>
+
+           bindMi(getType(type.to),     toType =>
+           bindMi(collectPolys(toType), toPolys =>
+
+           returnMi(fromPolys.concat(toPolys))))));
+}
+
+function renameIntersections(type1: Type, type2: Type): MInfer<[Type, Type]> {
+    const seen: { [id: number]: boolean } = {};
+
+    return bindMi(collectPolys(type1), t1Polys =>
+           bindMi(collectPolys(type2), t2Polys => {
+               const intersect = arrayIntersect(t1Polys, t2Polys);
+               const mres = intersect.reduce((m, type) => {
+                   if (seen[type.id]) {
+                       return m;
+                   }
+
+                   seen[type.id] = true;
+                   return bindMi(m,    fullType =>
+                          bindMi(poly, a =>
+                          instantiate(fullType, type, a)));
+               }, returnMi(type1));
+
+               return bindMi(mres, type1New =>
+                      returnMi<[Type, Type]>([type1New, type2]));
+           }));
 }
 
 function inferLambda(expr: LambdaDef): MInfer<Type> {
@@ -310,8 +371,9 @@ function inferApplication(expr: Application): MInfer<Type> {
                               returnMi(a))));
 
                    case 'ty_arrow':
-                       return bindMi(applyType(funcType, argType), newType =>
-                              getType(newType.to));
+                       return bindMi(renameIntersections(funcType, argType), ([funcType2, argType2]) =>
+                              bindMi(applyType(<TyArrow> funcType2, argType2), newType =>
+                              getType(newType.to)));
                }
            }));
 }
@@ -329,7 +391,6 @@ function applyType0(func: TyArrow, from: Type, arg: Type): MInfer<TyArrow> {
 
         if (from.kind === 'ty_mono') {
             if (arg.kind === 'ty_poly') {
-                // TODO: should we update here?
                 return bindMi(updateType(arg, from), _ =>
                        returnMi(func));
             }
@@ -395,6 +456,10 @@ function instantiate(type: Type, oldType: TyPoly, newType: Type): MInfer<Type> {
     }
 }
 
+function arrayIntersect<T>(arr1: T[], arr2: T[]): T[] {
+    return arr1.filter(n => arr2.indexOf(n) !== -1);
+}
+
 /***** Debug utilities *****/
 
 function pad(str: string, len: number): string {
@@ -414,7 +479,7 @@ const printContext: MInfer<void> = bindMi(getMi, st => {
 
     let c = st.bindMap;
     while (c.kind !== 'nil') {
-        str += pad(c.val[0] + ':', 5) + showTypeUnsafe(st, c.val[1]) + ',\n';
+        str += pad(c.val[0] + ':', 8) + showTypeUnsafe(st, c.val[1]) + ',\n';
         c = c.rest;
     }
 
