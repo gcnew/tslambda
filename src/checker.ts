@@ -142,7 +142,7 @@ function getVarType(name: string): MInfer<Type> {
 
 function updateType(oldType: Type, newType: Type): MInfer<Type> {
     return bindMi(getMi, ({idCounter, bindMap, typeMap}) => {
-        const newContext: InferCtx = {
+        const newContext = {
             typeMap: set(typeMap, oldType.id, left(newType.id)),
             idCounter: idCounter,
             bindMap: bindMap
@@ -389,23 +389,19 @@ function applyType0(func: TyArrow, from: Type, arg: Type): MInfer<TyArrow> {
             return returnMi(func);
         }
 
-        if (from.kind === 'ty_mono') {
-            if (arg.kind === 'ty_poly') {
-                return bindMi(updateType(arg, from), _ =>
-                       returnMi(func));
-            }
-
-            return failMi;
+        if (arg.kind === 'ty_poly') {
+            return bindMi(updateType(arg, from), _ =>
+                   returnMi(func));
         }
 
         if (from.kind === 'ty_poly') {
             return bindMi(instantiate(func, from, arg), newType =>
                    newType.kind !== 'ty_arrow'
-                       ? failMi
+                       ? failMi // TODO: assert
                        : returnMi(newType));
         }
 
-        if (arg.kind !== 'ty_arrow') {
+        if (arg.kind !== 'ty_arrow' || from.kind !== 'ty_arrow') {
             return failMi;
         }
 
