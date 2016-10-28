@@ -114,9 +114,11 @@ function unify(left: Type, right: Type): InferM<Subst> {
     }
 
     if (left.kind === 'ty_arrow' && right.kind === 'ty_arrow') {
-        return bindM(unify(left.from, right.from), s1 =>
-               bindM(unify(left.to,   right.to),   s2 =>
-                   returnM(compose(s2, s1))
+        return bindM(unify(left.from, right.from),          s1 =>
+               bindM(unify(
+                   apply(SubstitutableType, s1, left.to),
+                   apply(SubstitutableType, s1, right.to)), s2 =>
+               returnM(compose(s2, s1))
                ));
     }
 
@@ -285,10 +287,10 @@ function showError(err: TypeError): string {
             return `Unbound variable: ${err.name}`;
 
         case 'unification_fail':
-            return `Cannot unify ${showType(err.left)} with ${showType(err.right)}`;
+            return `Cannot unify '${showType(err.left)}' with '${showType(err.right)}'`;
 
         case 'infinite_type':
-            return `Infinite type: ${err.typeVar} in ${showType(err.type)}`;
+            return `Infinite type: Cannot unify '${err.typeVar}' with '${showType(err.type)}'`;
     }
 }
 
