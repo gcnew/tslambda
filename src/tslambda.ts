@@ -1,5 +1,6 @@
 
-import { List, Nil, cons, assoc as set, lookup, assertNever } from './prelude';
+import * as Map from './lang/map';
+import { List, Nil, cons, lookup, assertNever } from './lang/prelude';
 
 export {
     /* Types */
@@ -111,6 +112,10 @@ function get(ctx: Context, key: string): Value {
     return res.value;
 }
 
+function set(ctx: Context, key: string, value: Value) {
+    return Map.insert(key, value, ctx);
+}
+
 function evalExpr(ctx: Context, expr: Expr): Value {
     switch (expr.kind) {
         case 'literal':     return expr;
@@ -209,5 +214,5 @@ function ctxEntry(key: string, value: Value): CtxEntry {
 }
 
 function makeContext(ctx: Context, entries: CtxEntry[]): Context {
-    return entries.reduce<Context>((ctx, e) => set(ctx, e[0], e[1]), ctx);
+    return entries.reduce((ctx, [key, val]) => set(ctx, key, val), ctx);
 }

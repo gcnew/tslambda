@@ -1,7 +1,7 @@
 
 export {
     /* Types */
-    Maybe, List, State,
+    Maybe, List,
 
     Either, left, right,
 
@@ -9,14 +9,15 @@ export {
     // Nothing, Nil
 
     /* functions */
-    just, fromJust, cons, bindMb,
-
-    bindSt, returnSt, putSt,
+    just, fromJust, cons, concat, bindMb,
 
     /* Map-like */
-    lookup, assoc, set, unassoc,
+    lookup,
 
-    fold, foldr, map, filter, find, elem,
+    /* Set-like */
+    elem,
+
+    foldl, foldr, map, filter, zip, find,
 
     assertNever
 }
@@ -58,27 +59,6 @@ function right<T>(x: T): Right<T> {
     return { kind: 'right', value: x };
 }
 
-type State<S, T> = (st: S) => [T, S]
-
-function bindSt<S, T1, T2>(prev: State<S, T1>, f: (x: T1) => State<S, T2>): State<S, T2> {
-    return (st) => {
-        const [x, newSt] = prev(st);
-        return f(x)(newSt);
-    };
-}
-
-function returnSt<S, T>(val: T): State<S, T> {
-    return (st) => [val, st];
-}
-
-export const getSt = <S>(st: S): [S, S] => [st, st]; // State<S, S>
-
-function putSt<S>(newSt: S): State<S, {}> {
-    return _ => {
-        return [{}, newSt];
-    };
-}
-
 type List<T> = { kind: 'nil' }
              | { kind: 'cons', val: T, rest: List<T> }
 
@@ -86,6 +66,10 @@ export const Nil = { kind: 'nil' as 'nil' }; // TYH
 
 function cons<T>(x: T, xs: List<T>): List<T> {
     return { kind: 'cons', val: x, rest: xs };
+}
+
+function concat<T>(xs: List<T>, ys: List<T>): List<T> {
+    return foldr(xs, ys, cons);
 }
 
 function find<T>(list: List<T>, pred: (x: T) => boolean): Maybe<T> {
@@ -105,30 +89,6 @@ function lookup<K, V>(list: List<[K, V]>, x: K): Maybe<V> {
         find(list, ([key, _]) => key === x),
         ([_, val]) => just(val)
     );
-}
-
-function set<K, V>(list: List<[K, V]>, key: K, value: V): List<[K, V]> {
-    return assoc(removeAll(list, key), key, value);
-}
-
-function removeAll<K, V>(list: List<[K, V]>, key: K): List<[K, V]> {
-    return filter(list, ([x, _]) => x !== key);
-}
-
-// TODO: assoc key value list
-// TODO: use assoc instead of cons (in checker)
-function assoc<K, V>(list: List<[K, V]>, key: K, value: V): List<[K, V]> {
-    return cons<[K, V]>([key, value], list);
-}
-
-function unassoc<K, V>(list: List<[K, V]>, key: K): List<[K, V]> {
-    if (list.kind === 'nil') {
-        return Nil;
-    }
-
-    return list.val[0] === key
-        ? list.rest
-        : cons(list.val, unassoc(list.rest, key));
 }
 
 function filter<T>(list: List<T>, f: (x: T) => boolean): List<T> {
@@ -157,12 +117,12 @@ function map<T, R>(list: List<T>, f: (x: T) => R): List<R> {
     return cons(f(list.val), map(list.rest, f));
 }
 
-function fold<T, A>(list: List<T>, initial: A, f: (acc: A, x: T) => A): A {
+function foldl<T, A>(list: List<T>, initial: A, f: (acc: A, x: T) => A): A {
     if (list.kind === 'nil') {
         return initial;
     }
 
-    return fold(list.rest, f(initial, list.val), f);
+    return foldl(list.rest, f(initial, list.val), f);
 }
 
 function foldr<T, A>(list: List<T>, initial: A, f: (x: T, acc: A) => A): A {
@@ -171,6 +131,14 @@ function foldr<T, A>(list: List<T>, initial: A, f: (x: T, acc: A) => A): A {
     }
 
     return f(list.val, foldr(list.rest, initial, f));
+}
+
+function zip<T, V>(left: List<T>, right: List<V>): List<[T, V]> {
+    if (left.kind === 'nil' || right.kind === 'nil') {
+        return Nil;
+    }
+
+    return cons<[T, V]>([left.val, right.val], zip(left.rest, right.rest));
 }
 
 function assertNever(x: never): never {

@@ -1,6 +1,6 @@
 
 import { parse } from './parser'
-import { Nothing, just, fromJust } from './prelude'
+import { Nothing, just, fromJust } from './lang/prelude'
 
 import {
     CtxEntry,

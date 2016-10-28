@@ -1,7 +1,7 @@
 
 import { lex, Token } from './lexer'
 import { Expr, LambdaDef, Literal, Application, lit, lam, ref, ap } from './tslambda'
-import { List, Maybe, Nothing, just } from './prelude'
+import { List, Maybe, Nothing, just } from './lang/prelude'
 
 export {
     /* Types */

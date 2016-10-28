@@ -1,5 +1,5 @@
 
-import { List, Nil, cons } from './prelude'
+import { List, Nil, cons } from './lang/prelude'
 
 export {
     /* Types */
