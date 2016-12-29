@@ -60,7 +60,7 @@ function testInfer(src: string, expected: string, isSuccess = true) {
     if ((res.kind === 'right' !== isSuccess)
         || (res.kind === 'right' && res.value !== expected))
     {
-        printDiff(expected, res.value);
+        printDiff(src, expected, res.value);
     }
 }
 
@@ -70,19 +70,20 @@ function testParse(src: string, expected: string|undefined) {
     if (res.kind === 'just') {
         const val = show(res.value);
 
-        !expected                    && printDiff("<Fail>", val);
-        expected && expected !== val && printDiff(expected, val);
+        !expected                    && printDiff(src, "<Fail>", val);
+        expected && expected !== val && printDiff(src, expected, val);
     } else {
-        expected                     && printDiff(expected, "<Nothing>");
+        expected                     && printDiff(src, expected, "<Nothing>");
     }
 }
 
 function testEval(env: Context, src: string, expected: string) {
     const res = show(evalExpr(env, fromJust(parse(src))));
-    res === expected || printDiff(expected, res);
+    res === expected || printDiff(src, expected, res);
 }
 
-function printDiff(expected: string, actual: string) {
+function printDiff(input: string, expected: string, actual: string) {
+    console.log(`Input:    ${input}`);
     console.log(`Actual:   ${actual}`);
     console.log(`Expected: ${expected}`);
     console.log();
