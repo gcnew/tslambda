@@ -1,64 +1,89 @@
 
 import { parse } from './parser'
 import { prelude } from './lambda_prelude'
-import { show, evalExpr } from './tslambda'
+import { Context, evalExpr, show } from './tslambda'
 import { infer } from './checker/checker'
 
 import { fromJust, Nil } from './lang/prelude'
 
-// infer(Nil, fromJust(parse('λtrue.λfalse.true (true false)'))); // (int -> int) -> int
-console.log(infer(fromJust(parse('λf.f (f 1)')))); // (int -> int) -> int
-console.log(infer(fromJust(parse('λf.f 1')))); // (int -> a) -> a
-// infer(prelude, fromJust(parse('True (True False)')));
-// infer(prelude, fromJust(parse('(λf.λx.f x) +'))); // ((a -> b) -> a -> b) (num -> num -> num) => num -> num -> num
-// infer(prelude, fromJust(parse('λf.f 1'))); // (int -> a) -> a
-// infer(prelude, fromJust(parse('λf.λx.f x'))); // (a -> b) -> a -> b
-// infer(prelude, fromJust(parse('λt.λf.t'))); // a -> b -> a
-// infer(prelude, fromJust(parse('(λf.λx.f x) + 1'))); // ((a -> b) -> a -> b) (num -> num -> num) num => num -> num
-// infer(prelude, fromJust(parse('λx.λx.x'))); // a -> b -> b
-// infer(prelude, fromJust(parse('λx.λxs.λcc.λcn.cc x xs')));
-// infer(prelude, fromJust(parse(`head`)));
-// infer(prelude, fromJust(parse(`Cons 3 Nil`)));
-// infer(prelude, fromJust(parse(`head (Cons 3 Nil)`)));
-// infer(prelude, fromJust(parse(`(λxs.xs (λx.λy.x) ⊥) ((λCons.λNil.λhead.head (Cons 3 Nil)) (λx.λxs.λcc.λcn.cc x xs) (λcc.λcn.cn))`)));
-// infer(prelude, fromJust(parse(`(λCons.λNil.λhead (Cons 3 (Cons 4 Nil))) (λx.λxs.λcc.λcn.cc x xs) (λcc.λcn.cn) (λxs.xs (λx.λy.x) ⊥)`)));
-// infer(prelude, fromJust(parse('(λf.f 1) 1'))); // Nothing
-// infer(fromJust(parse('λx.x x'))); // Nothing
+testInfer('λtrue.λfalse.true (true false)', `(a -> a) -> a -> a`);
+testInfer('λf.f (f 1)',                     `(int -> int) -> int`);
+testInfer('λx.x x',                         `Infinite type: Cannot unify 'a' with 'a -> b'`, false);
+testInfer('(λf.f 1) 1',                     `Cannot unify 'int -> c' with 'int'`,            false);
+testInfer('λf.f 1',                         `(int -> a) -> a`);
+testInfer('True (True False)',              `Unbound variable: True`,                        false);
+testInfer('(λf.λx.f x) +',                  `int -> int -> int`);
+testInfer('λf.λx.f x',                      `(a -> b) -> a -> b`);
+testInfer('λt.λf.t',                        `b -> a -> b`);
+testInfer('(λf.λx.f x) + 1',                `int -> int`);
+testInfer('λx.λx.x',                        `a -> b -> b`);
+testInfer('λx.λxs.λcc.λcn.cc x xs',         `b -> a -> (b -> a -> d) -> c -> d`);
+testInfer(`head`,                           `Unbound variable: head`,                        false);
+testInfer(`Cons 3 Nil`,                     `Unbound variable: Cons`,                        false);
+testInfer(`head (Cons 3 Nil)`,              `Unbound variable: head`,                        false);
+testInfer(`λf.(λg.f (g g)) (λg.f (g g))`,   `Infinite type: Cannot unify 'c' with 'c -> e'`, false);
 
-console.log(show(
-    fromJust(parse('λf.f (λx.x) + 1'))
-));
+testInfer(
+    `(λxs.xs (λx.λy.x) ⊥) ((λCons.λNil.λhead.head (Cons 3 Nil)) (λx.λxs.λcc.λcn.cc x xs) (λcc.λcn.cn))`,
+    `(int -> (a -> b -> b) -> d) -> c -> d`
+);
 
-parse('λf.f λx.x + 1').kind === 'nothing' || fail('What a parser :d');
+// (\cons nil head -> head (cons 3 (cons 4 nil))) (\x xs cc cn -> cc x xs) (\cc cn -> cn) (\xs -> xs (\x y -> x) undefined)
+testInfer(
+    `(λCons.λNil.λhead.head (Cons 3 (Cons 4 Nil))) (λx.λxs.λcc.λcn.cc x xs) (λcc.λcn.cn) (λxs.xs (λx.λy.x) ⊥)`,
+    `Infinite type: Cannot unify 'm' with '(int -> m -> p) -> o -> p'`,
+    false
+);
 
-console.log(show(fromJust(parse(
-    '(λf.λx.f x) + 1'
-))));
 
-console.log(show(evalExpr(prelude, fromJust(parse(
-    '+ 3 (+ 4 5)'
-)))));
+testParse('λf.f (λx.x) + 1', `λf.f (λx.x) + 1`);
+testParse('(λf.λx.f x) + 1', `(λf.λx.f x) + 1`);
+testParse('λf.f λx.x + 1',    undefined);
 
-console.log(show(evalExpr(Nil, fromJust(parse(
-    `(λCons.λNil.λhead.head (Cons 3 Nil)) (λx.λxs.λcc.λcn.cc x xs) (λcc.λcn.cn) (λxs.xs (λx.λy.x) 0)`
-)))));
 
-console.log(show(evalExpr(prelude, fromJust(parse(
-    '- 7 (/ 4 2)'
-)))));
+testEval(prelude, '+ 3 (+ 4 5)', '12');
+testEval(prelude, '- 7 (/ 4 2)', '5');
+testEval(prelude, 'head (Cons 123 Nil)', '123');
+testEval(prelude, 'null', 'λxs.xs (True (True False)) True');
+testEval(prelude, 'head Nil', 'λignored.<native>');
 
-console.log(show(evalExpr(prelude, fromJust(parse(
-    'head (Cons 123 Nil)'
-)))));
+testEval(
+    Nil,
+    `(λCons.λNil.λhead.head (Cons 3 Nil)) (λx.λxs.λcc.λcn.cc x xs) (λcc.λcn.cn) (λxs.xs (λx.λy.x) 0)`,
+    '3'
+);
 
-console.log(show(evalExpr(prelude, fromJust(parse(
-    'null'
-)))));
 
-console.log(show(evalExpr(prelude, fromJust(parse(
-    'head Nil'
-)))));
+function testInfer(src: string, expected: string, isSuccess = true) {
+    const res = infer(fromJust(parse(src)));
 
-function fail(msg: string) {
-    throw new Error(msg);
+    if ((res.kind === 'right' !== isSuccess)
+        || (res.kind === 'right' && res.value !== expected))
+    {
+        printDiff(expected, res.value);
+    }
+}
+
+function testParse(src: string, expected: string|undefined) {
+    const res = parse(src);
+
+    if (res.kind === 'just') {
+        const val = show(res.value);
+
+        !expected                    && printDiff("<Fail>", val);
+        expected && expected !== val && printDiff(expected, val);
+    } else {
+        expected                     && printDiff(expected, "<Nothing>");
+    }
+}
+
+function testEval(env: Context, src: string, expected: string) {
+    const res = show(evalExpr(env, fromJust(parse(src))));
+    res === expected || printDiff(expected, res);
+}
+
+function printDiff(expected: string, actual: string) {
+    console.log(`Actual:   ${actual}`);
+    console.log(`Expected: ${expected}`);
+    console.log();
 }

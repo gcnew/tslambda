@@ -222,17 +222,17 @@ function inferApplication(env: TypeEnv, expr: Application): InferM<[Subst, Type]
 
 const emptyTypeEnv = typeEnv(Map.empty);
 
-function pub_infer(expr: Expr): string {
+function pub_infer(expr: Expr): Either<string, string> {
     const res = infer(nativeTypes, expr)({ idCounter: 0 });
 
     if (res.kind === 'left') {
-        return showError(res.value);
+        return left(showError(res.value));
     }
 
     const [inferred, _state] = res.value;
     const scheme = closeOver(inferred);
 
-    return showType(scheme.type);
+    return right(showType(scheme.type));
 }
 
 function closeOver([subst, type]: [Subst, Type]): Scheme {
