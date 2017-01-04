@@ -33,7 +33,7 @@ function just<T>(x: T): Maybe<T> {
 
 function fromJust<T>(x: Maybe<T>, msg?: string): T {
     if (x.kind === 'nothing') {
-        throw new Error('Maybe.fromJust: Nothing');
+        throw new Error(msg || 'Maybe.fromJust: Nothing');
     }
 
     return x.value;

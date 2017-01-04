@@ -1,6 +1,6 @@
 
 import * as Map from './lang/map';
-import { List, Nil, cons, lookup, assertNever } from './lang/prelude';
+import { List, Nil, lookup, assertNever } from './lang/prelude';
 
 export {
     /* Types */

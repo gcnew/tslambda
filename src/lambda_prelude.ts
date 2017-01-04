@@ -6,7 +6,7 @@ import {
     CtxEntry,
 
     /* Constructor Funcs */
-    lam, ap, ref, lit, native, nativeBi,
+    native, nativeBi,
 
     /* Data */
     CtxRoot,
@@ -23,7 +23,7 @@ export const natives = makeContext(CtxRoot, [
     nativeBi('/', (x, y) => x / y),
 
     native(
-        '⊥', (ignored) => { throw Error('⊥'); }
+        '⊥', (_ignored) => { throw Error('⊥'); }
     )
 ]);
 

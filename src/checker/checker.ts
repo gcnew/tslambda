@@ -7,16 +7,16 @@ import * as Map from '../lang/map'
 import * as Set from '../lang/set'
 
 import {
-    Maybe, Nothing, just, fromJust,
+    fromJust,
 
     Either, left, right,
 
-    List, Nil, cons, concat,
+    Nil, cons,
 
-    map, foldl, zip
+    foldl, zip
 } from '../lang/prelude'
 
-import { Context, Expr, LambdaDef, Application, show } from '../tslambda'
+import { Expr, LambdaDef, Application } from '../tslambda'
 import { Substitutable, SubstitutableType, SubstitutableTypeEnv, apply, ftv } from './substitutable'
 
 import {

@@ -1,6 +1,6 @@
 
 import { lex, Token } from './lexer'
-import { Expr, LambdaDef, Literal, Application, lit, lam, ref, ap } from './tslambda'
+import { Expr, LambdaDef, Literal, lit, lam, ref, ap } from './tslambda'
 import { List, Maybe, Nothing, just } from './lang/prelude'
 
 export {
@@ -145,7 +145,7 @@ function parseAlt3<A, B, C>(p1: Parser<A>, p2: Parser<B>, p3: Parser<C>): Parser
     return parseAltAll([ p1, p2, p3 ]);
 }
 
-function parseAltAll<T>(parsers: Parser<any>[]): Parser<any> {
+function parseAltAll(parsers: Parser<any>[]): Parser<any> {
     return (tokens) => {
         for (const p of parsers) {
             const res = p(tokens);

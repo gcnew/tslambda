@@ -1,9 +1,9 @@
 import {
-    List, Maybe,
+    List,
 
     Nil,
 
-    cons, filter, foldl, lookup, find, elem,
+    cons, filter, foldl, lookup, find,
 } from './prelude'
 
 import * as Prelude from './prelude'

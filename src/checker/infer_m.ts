@@ -8,7 +8,7 @@ export {
     bindM, returnM, /* getM, */ putM, failM, mapM
 }
 
-// type InferM a = StateT InferState Either a
+// type InferM a = StateT InferState (Either TypeError) a
 type InferM<T> = (st: InferState) => Either<TypeError, [T, InferState]>
 
 function bindM<T, R>(prev: InferM<T>, f: (x: T) => InferM<R>): InferM<R> {

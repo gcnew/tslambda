@@ -1,11 +1,8 @@
 
 import * as Map from '../lang/map'
-import * as Set from '../lang/set'
 
 import {
-    List, Either,
-
-    left, right
+    List
 } from '../lang/prelude'
 
 
