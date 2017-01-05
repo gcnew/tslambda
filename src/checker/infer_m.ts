@@ -1,6 +1,6 @@
 
 import { TypeError, InferState } from './checker_types'
-import { List, Nil, cons, foldr, Either, left, right } from '../lang/prelude'
+import { List, Nil, cons, foldr, Either, Left, left, right } from '../lang/prelude'
 
 export {
     InferM,
@@ -36,7 +36,7 @@ function putM(x: InferState): InferM<void> {
     return _ => right<[void, InferState]>([undefined, x]);
 }
 
-function failM(reason: TypeError): InferM<any> {
+function failM(reason: TypeError): (st: InferState) => Left<TypeError> {
     return _ => left(reason);
 }
 

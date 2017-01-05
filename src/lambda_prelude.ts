@@ -23,7 +23,7 @@ export const natives = makeContext(CtxRoot, [
     nativeBi('/', (x, y) => x / y),
 
     native(
-        '⊥', (_ignored) => { throw Error('⊥'); }
+        '⊥', (ignored) => { throw Error('⊥'); }
     )
 ]);
 

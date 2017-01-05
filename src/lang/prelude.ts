@@ -3,13 +3,13 @@ export {
     /* Types */
     Maybe, List,
 
-    Either, left, right,
+    Either, Left, Right, left, right,
 
     /* Data */
     // Nothing, Nil
 
     /* functions */
-    just, fromJust, cons, concat, bindMb,
+    just, fromJust, cons, append, bindMb,
 
     /* Map-like */
     lookup,
@@ -68,7 +68,7 @@ function cons<T>(x: T, xs: List<T>): List<T> {
     return { kind: 'cons', val: x, rest: xs };
 }
 
-function concat<T>(xs: List<T>, ys: List<T>): List<T> {
+function append<T>(xs: List<T>, ys: List<T>): List<T> {
     return foldr(xs, ys, cons);
 }
 

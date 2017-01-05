@@ -30,7 +30,7 @@ import {
 
     TypeEnv, Scheme, Subst,
 
-    scheme, typeEnv, tyVar, tyCon, tyArrow,
+    nullSubst, scheme, typeEnv, tyVar, tyCon, tyArrow,
 
     unificationFail, unboundVariable, infiniteType
 } from './checker_types'
@@ -56,8 +56,6 @@ const nativeTypes = typeEnv(Map.fromObject({
 function extend(ctx: TypeEnv, varName: string, scheme: Scheme): TypeEnv {
     return typeEnv(Map.insert(varName, scheme, ctx.typeMap));
 }
-
-const nullSubst: Subst = Map.empty;
 
 function compose(left: Subst, right: Subst): Subst {
     return Map.union(

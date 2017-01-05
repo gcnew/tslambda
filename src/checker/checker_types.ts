@@ -44,6 +44,8 @@ type TypeError = { kind: 'unbound_variable', name: string                 }
                | { kind: 'infinite_type',    typeVar: string, type: Type  }
 
 
+export const nullSubst: Subst = Map.empty;
+
 function scheme(vars: List<string>, type: Type): Scheme {
     return { kind: 'scheme', vars, type };
 }
